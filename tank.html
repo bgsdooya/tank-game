@@ -146,6 +146,41 @@ let muted = false;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const rnd = (a, b) => a + Math.random() * (b - a);
 
+/* ---------- 저장 / 이어하기 ---------- */
+const SAVE_KEY = 'scorched-tanks-save', DIFF_NAMES = ['쉬움', '보통', '어려움'];
+let playing = false;                                  // 게임 시작 이후에만 저장
+function saveGame(phase) {
+  if (!playing) return;
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify({
+      v: 1, phase, mode, diff, roundNo, cur, wind, heights: Array.from(heights),
+      tanks: tanks.map(t => ({ hp: t.hp, x: t.x, angle: t.angle, power: t.power, weapon: t.weapon, ammo: t.ammo, score: t.score }))
+    }));
+  } catch (e) {}
+}
+function readSave() {
+  try {
+    const d = JSON.parse(localStorage.getItem(SAVE_KEY));
+    if (d && d.v === 1 && Array.isArray(d.heights) && d.heights.length === W && Array.isArray(d.tanks) && d.tanks.length === 2) return d;
+  } catch (e) {}
+  return null;
+}
+function loadGame() {
+  const d = readSave(); if (!d) return false;
+  mode = d.mode; diff = d.diff; roundNo = d.roundNo;
+  tanks = [mkTank(0, '플레이어 1', false), mkTank(1, mode === '2p' ? '플레이어 2' : 'CPU', mode !== '2p')];
+  playing = true;
+  if (d.phase === 'over') { tanks.forEach((t, i) => { t.score = d.tanks[i].score; }); initRound(); return true; }
+  d.heights.forEach((h, i) => { heights[i] = h; });
+  tanks.forEach((t, i) => Object.assign(t, d.tanks[i], { dead: false }));
+  tanks.forEach(t => { t.y = t.y0 = baseY(t); });
+  wind = d.wind; cur = d.cur;
+  shot = null; booms = []; parts = []; floats = []; roundEnding = false; aiObj = null;
+  redrawTerrain(); hideOverlay(); go('aim');
+  if (tanks[cur].cpu) aiObj = aiPlan(tanks[cur], tanks[1 - cur]);
+  return true;
+}
+
 /* ---------- 소리 ---------- */
 let ac = null;
 function audio() {
@@ -250,7 +285,7 @@ function mkTank(i, name, cpu) {
            color: i ? '#45d8ff' : '#ff7a45', dark: i ? '#1c8aa8' : '#b3481f' };
 }
 function startGame(m, d) {
-  mode = m; diff = d; roundNo = 0;
+  mode = m; diff = d; roundNo = 0; playing = true;
   tanks = [mkTank(0, '플레이어 1', false), mkTank(1, m === '2p' ? '플레이어 2' : 'CPU', m !== '2p')];
   initRound();
 }
@@ -272,7 +307,7 @@ function initRound() {
   go('aim');
   if (tanks[cur].cpu) aiObj = aiPlan(tanks[cur], tanks[1 - cur]);
 }
-function go(s) { state = s; updateHud(); }
+function go(s) { state = s; updateHud(); if (s === 'aim') saveGame('aim'); }
 
 /* ---------- 발사 / 물리 ---------- */
 function fire() {
@@ -382,6 +417,7 @@ function endRound() {
   if (alive.length === 1) { alive[0].score++; head = `<h2 style="--c:${alive[0].color}">${alive[0].name} 승리</h2>`; }
   else head = '<h2>무승부</h2>';
   updateHud();
+  saveGame('over');
   showOverlay(`<div class="card">${head}
     <p style="font-family:var(--px);font-size:14px;color:var(--ink)">${tanks[0].score} : ${tanks[1].score}</p>
     <div class="btns"><button class="primary" data-act="next">다음 라운드</button><button data-act="menu">메뉴</button></div></div>`);
@@ -484,6 +520,7 @@ ov.addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
   const act = b.dataset.act;
   if (act === 'start') { audio(); startGame(b.dataset.mode, +b.dataset.diff || 0); }
+  else if (act === 'continue') { audio(); if (!loadGame()) showMenu(); }
   else if (act === 'next') initRound();
   else if (act === 'menu') showMenu();
 });
@@ -493,11 +530,14 @@ function showOverlay(html) { ov.innerHTML = html; ov.classList.remove('hide'); c
 function hideOverlay() { ov.classList.add('hide'); ov.innerHTML = ''; }
 function showMenu() {
   state = 'menu'; keys.clear();
+  const sv = readSave();
+  const cont = sv ? `<div class="btns one"><button class="primary" data-act="continue">이어하기 · ${sv.mode === '2p' ? '2인 대전' : 'CPU ' + DIFF_NAMES[sv.diff]} · ${sv.tanks[0].score}:${sv.tanks[1].score} · ${Math.max(1, sv.roundNo)}라운드</button></div>` : '';
   showOverlay(`<div class="card">
     <h1>SCORCHED<br>TANKS</h1>
     <p>지형을 파고, 바람을 읽고, 상대를 날려라.</p>
+    ${cont}
     <div class="btns">
-      <button class="primary" data-act="start" data-mode="cpu" data-diff="0">CPU 쉬움</button>
+      <button${sv ? '' : ' class="primary"'} data-act="start" data-mode="cpu" data-diff="0">CPU 쉬움</button>
       <button data-act="start" data-mode="cpu" data-diff="1">CPU 보통</button>
       <button data-act="start" data-mode="cpu" data-diff="2">CPU 어려움</button>
       <button data-act="start" data-mode="2p">2인 대전</button>
