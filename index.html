@@ -55,6 +55,11 @@ const GAMES = [
     desc: '각도와 파워를 맞춰 포탄을 날리는 턴제 포격전. 땅이 파이고 바람이 분다.',
     href: 'tank.html',
     thumb: 'tank',
+    stat: () => {
+      const st = JSON.parse(localStorage.getItem('scorched-tanks-stats') || '{}');
+      let w = 0, l = 0; [0, 1, 2].forEach(i => { const r = st['cpu' + i]; if (r) { w += r.w; l += r.l; } });
+      return w + l ? 'CPU전 ' + w + '승 ' + l + '패' : '';
+    },
     tags: ['CPU 대전 · 2인', '가로 화면 추천']
   },
   {
@@ -135,6 +140,10 @@ GAMES.forEach(gm => {
   if (gm.hiKey) {
     let v = 0; try { v = +localStorage.getItem(gm.hiKey) || 0; } catch (e) {}
     if (v > 0) { const d = document.createElement('div'); d.className = 'hi'; d.textContent = 'HI ' + String(v).padStart(8, '0'); b.appendChild(d); }
+  }
+  if (gm.stat) {
+    let v = ''; try { v = gm.stat(); } catch (e) {}
+    if (v) { const d = document.createElement('div'); d.className = 'hi'; d.textContent = v; b.appendChild(d); }
   }
   a.appendChild(b);
   grid.appendChild(a);

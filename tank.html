@@ -147,7 +147,9 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const rnd = (a, b) => a + Math.random() * (b - a);
 
 /* ---------- 저장 / 이어하기 ---------- */
-const SAVE_KEY = 'scorched-tanks-save', DIFF_NAMES = ['쉬움', '보통', '어려움'];
+const SAVE_KEY = 'scorched-tanks-save', STATS_KEY = 'scorched-tanks-stats', DIFF_NAMES = ['쉬움', '보통', '어려움'];
+const WIN_TO = 3;                                     // 먼저 3승하면 매치 종료
+const modeKey = () => mode === '2p' ? '2p' : 'cpu' + diff;
 let playing = false;                                  // 게임 시작 이후에만 저장
 function saveGame(phase) {
   if (!playing) return;
@@ -157,6 +159,17 @@ function saveGame(phase) {
       tanks: tanks.map(t => ({ hp: t.hp, x: t.x, angle: t.angle, power: t.power, weapon: t.weapon, ammo: t.ammo, score: t.score }))
     }));
   } catch (e) {}
+}
+function clearSave() { try { localStorage.removeItem(SAVE_KEY); } catch (e) {} }
+function readStats() {
+  try { const d = JSON.parse(localStorage.getItem(STATS_KEY)); if (d && typeof d === 'object') return d; } catch (e) {}
+  return {};
+}
+function recordMatch(p1Won) {
+  const st = readStats(), k = modeKey(), r = st[k] || { w: 0, l: 0 };
+  r[p1Won ? 'w' : 'l']++; st[k] = r;
+  try { localStorage.setItem(STATS_KEY, JSON.stringify(st)); } catch (e) {}
+  return r;
 }
 function readSave() {
   try {
@@ -285,7 +298,7 @@ function mkTank(i, name, cpu) {
            color: i ? '#45d8ff' : '#ff7a45', dark: i ? '#1c8aa8' : '#b3481f' };
 }
 function startGame(m, d) {
-  mode = m; diff = d; roundNo = 0; playing = true;
+  mode = m; diff = d; roundNo = 0; playing = true; clearSave();
   tanks = [mkTank(0, '플레이어 1', false), mkTank(1, m === '2p' ? '플레이어 2' : 'CPU', m !== '2p')];
   initRound();
 }
@@ -417,9 +430,18 @@ function endRound() {
   if (alive.length === 1) { alive[0].score++; head = `<h2 style="--c:${alive[0].color}">${alive[0].name} 승리</h2>`; }
   else head = '<h2>무승부</h2>';
   updateHud();
+  const score = `<p style="font-family:var(--px);font-size:14px;color:var(--ink)">${tanks[0].score} : ${tanks[1].score}</p>`;
+  const champ = tanks.find(t => t.score >= WIN_TO);
+  if (champ) {
+    const r = recordMatch(champ.i === 0);
+    clearSave(); playing = false;
+    const rec = mode === '2p' ? `플레이어 1 ${r.w}승 : 플레이어 2 ${r.l}승` : `CPU ${DIFF_NAMES[diff]} 전적 ${r.w}승 ${r.l}패`;
+    showOverlay(`<div class="card"><h2 style="--c:${champ.color}">${champ.name} 매치 승리</h2>${score}<p>${rec}</p>
+      <div class="btns"><button class="primary" data-act="rematch">다시 대전</button><button data-act="menu">메뉴</button></div></div>`);
+    return;
+  }
   saveGame('over');
-  showOverlay(`<div class="card">${head}
-    <p style="font-family:var(--px);font-size:14px;color:var(--ink)">${tanks[0].score} : ${tanks[1].score}</p>
+  showOverlay(`<div class="card">${head}${score}<p>먼저 ${WIN_TO}승하면 매치 승리</p>
     <div class="btns"><button class="primary" data-act="next">다음 라운드</button><button data-act="menu">메뉴</button></div></div>`);
 }
 
@@ -521,6 +543,7 @@ ov.addEventListener('click', e => {
   const act = b.dataset.act;
   if (act === 'start') { audio(); startGame(b.dataset.mode, +b.dataset.diff || 0); }
   else if (act === 'continue') { audio(); if (!loadGame()) showMenu(); }
+  else if (act === 'rematch') startGame(mode, diff);
   else if (act === 'next') initRound();
   else if (act === 'menu') showMenu();
 });
@@ -528,6 +551,13 @@ ov.addEventListener('click', e => {
 /* ---------- 오버레이 / HUD ---------- */
 function showOverlay(html) { ov.innerHTML = html; ov.classList.remove('hide'); const b = ov.querySelector('.primary'); if (b) b.focus(); }
 function hideOverlay() { ov.classList.add('hide'); ov.innerHTML = ''; }
+function statLine() {
+  const st = readStats(), a = [0, 1, 2].filter(i => st['cpu' + i] && st['cpu' + i].w + st['cpu' + i].l > 0)
+    .map(i => `${DIFF_NAMES[i]} ${st['cpu' + i].w}승 ${st['cpu' + i].l}패`);
+  const p2 = st['2p'] && st['2p'].w + st['2p'].l > 0 ? [`2인 ${st['2p'].w} : ${st['2p'].l}`] : [];
+  const all = a.concat(p2);
+  return all.length ? `<p>전적 · ${all.join(' · ')}</p>` : '';
+}
 function showMenu() {
   state = 'menu'; keys.clear();
   const sv = readSave();
@@ -535,7 +565,7 @@ function showMenu() {
   showOverlay(`<div class="card">
     <h1>SCORCHED<br>TANKS</h1>
     <p>지형을 파고, 바람을 읽고, 상대를 날려라.</p>
-    ${cont}
+    ${cont}${statLine()}
     <div class="btns">
       <button${sv ? '' : ' class="primary"'} data-act="start" data-mode="cpu" data-diff="0">CPU 쉬움</button>
       <button data-act="start" data-mode="cpu" data-diff="1">CPU 보통</button>
