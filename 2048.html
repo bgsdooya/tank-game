@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>2048</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+:root{
+  --void:#0e0b24; --panel:#181440; --edge:#3a2f7a; --ink:#f1ead2; --dim:#9b94c8; --fire:#ffcf3d;
+  --px:'Press Start 2P','Courier New',monospace;
+  --ko:'Malgun Gothic','Apple SD Gothic Neo','Noto Sans KR',system-ui,sans-serif;
+  --w:min(100%,480px,calc(100dvh - 230px));
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--void);color:var(--ink);font-family:var(--ko);min-height:100%;overscroll-behavior:none}
+body{display:flex;justify-content:center;padding:max(10px,env(safe-area-inset-top)) 10px max(10px,env(safe-area-inset-bottom))}
+#app{width:100%;display:flex;flex-direction:column;align-items:center;gap:10px}
+#top{width:var(--w);display:flex;align-items:stretch;gap:8px}
+h1{font-family:var(--px);font-size:clamp(18px,6vw,30px);margin:0;color:var(--fire);text-shadow:3px 3px 0 #b3361f;align-self:center;flex:1;letter-spacing:1px}
+.sb{background:var(--panel);border:2px solid var(--edge);padding:6px 12px;min-width:84px;text-align:center}
+.sb span{display:block;font-size:11px;color:var(--dim)}
+.sb b{display:block;font-family:var(--px);font-size:13px;margin-top:5px;color:var(--ink)}
+#bar{width:var(--w);display:flex;justify-content:space-between;align-items:center;gap:8px}
+#bar p{margin:0;font-size:13px;color:var(--dim)}
+#bar .b{display:flex;gap:6px}
+#play{position:relative;width:var(--w);touch-action:none;user-select:none;-webkit-user-select:none}
+#board{position:relative;width:100%;aspect-ratio:1;background:#0b0920;border:3px solid var(--edge);overflow:hidden}
+.cell,.tile{position:absolute;width:21.25%;height:21.25%}
+.cell{background:#171150}
+.tile{display:flex;align-items:center;justify-content:center;font-family:var(--px);color:#fff;transition:left .11s ease-out,top .11s ease-out;box-shadow:inset -4px -4px 0 rgba(0,0,0,.3),inset 4px 4px 0 rgba(255,255,255,.2);will-change:left,top}
+.tile.new{animation:pop .16s ease-out}
+.tile.merge{animation:bump .16s ease-out;z-index:2}
+@keyframes pop{from{transform:scale(.3);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes bump{0%{transform:scale(1)}45%{transform:scale(1.18)}100%{transform:scale(1)}}
+@media (prefers-reduced-motion:reduce){.tile{transition:none}.tile.new,.tile.merge{animation:none}}
+.v2{background:#2f3f8f}.v4{background:#3f55b8}.v8{background:#ff9a2a}.v16{background:#ff7a45}
+.v32{background:#ff4a5a}.v64{background:#e8236b}
+.v128{background:#ffd23d;color:#2a1300}.v256{background:#ffe066;color:#2a1300}
+.v512{background:#9aeaff;color:#06222c}.v1024{background:#5bd35b;color:#062a0c}
+.v2048{background:#fff;color:#2a1300;box-shadow:inset -4px -4px 0 rgba(0,0,0,.2),0 0 18px 4px rgba(255,210,61,.7)}
+.vbig{background:#b25cff}
+#ov{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(8,6,28,.82);padding:14px;z-index:5}
+#ov.hide{display:none}
+.card{width:100%;max-width:300px;text-align:center;display:flex;flex-direction:column;gap:12px;align-items:center}
+.card h2{font-size:clamp(22px,5vw,28px);margin:0}
+.card p{margin:0;color:var(--dim);font-size:14px}
+.big{font-family:var(--px);font-size:15px;color:var(--fire)}
+.btns{display:grid;gap:8px;width:100%}
+button{font:700 14px var(--ko);color:var(--ink);background:var(--panel);border:2px solid var(--edge);border-bottom-width:4px;padding:10px 14px;cursor:pointer;touch-action:manipulation}
+button:hover:not(:disabled){border-color:var(--dim)}
+button:active:not(:disabled){transform:translateY(2px);border-bottom-width:2px}
+button:focus-visible{outline:3px solid var(--fire);outline-offset:2px}
+button:disabled{opacity:.35;cursor:default}
+button.primary{background:var(--fire);color:#2a1300;border-color:#b8860b}
+#foot{width:var(--w);font-size:12px;color:var(--dim);display:flex;justify-content:space-between;gap:8px}
+#foot a{color:var(--dim);text-decoration:none;border-bottom:1px solid var(--edge)}
+@media (pointer:coarse){.keys{display:none}}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="top">
+    <h1>2048</h1>
+    <div class="sb"><span>점수</span><b id="sc">0</b></div>
+    <div class="sb"><span>최고</span><b id="bs">0</b></div>
+  </div>
+  <div id="bar">
+    <p>같은 숫자를 합쳐 <b style="color:var(--fire)">2048</b>을 만들어라</p>
+    <div class="b"><button id="undo">되돌리기</button><button id="new">새 게임</button></div>
+  </div>
+  <div id="play">
+    <div id="board"></div>
+    <div id="ov" class="hide"></div>
+  </div>
+  <div id="foot">
+    <span class="keys">방향키 / WASD 이동 &nbsp; U 되돌리기 &nbsp; R 새 게임</span>
+    <span><a href="./">← 게임 목록</a></span>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+const $ = s => document.querySelector(s);
+const boardEl = $('#board'), ov = $('#ov');
+const G = 3, CELL = (100 - 5 * G) / 4, STEP = CELL + G;      // 퍼센트 단위
+let grid, score = 0, best = 0, over = false, won = false, keepPlaying = false, undoState = null, pending = [], bw = 400;
+try { best = +localStorage.getItem('2048-best') || 0; } catch (e) {}
+
+for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) {
+  const d = document.createElement('div'); d.className = 'cell'; place(d, r, c); boardEl.appendChild(d);
+}
+function place(el, r, c) { el.style.left = (G + c * STEP) + '%'; el.style.top = (G + r * STEP) + '%'; el.style.width = el.style.height = CELL + '%'; }
+function fs(v) { const n = String(v).length; return bw * (n <= 2 ? .08 : n === 3 ? .06 : n === 4 ? .045 : .036); }
+function look(t, cls) {
+  t.el.className = 'tile ' + (t.v > 2048 ? 'vbig' : 'v' + t.v) + (cls ? ' ' + cls : '');
+  t.el.textContent = t.v; t.el.style.fontSize = fs(t.v) + 'px';
+}
+function mkTile(v, r, c, cls) {
+  const el = document.createElement('div'); place(el, r, c); boardEl.appendChild(el);
+  const t = { v, r, c, el }; look(t, cls); grid[r][c] = t; return t;
+}
+new ResizeObserver(() => { bw = boardEl.clientWidth; grid && grid.flat().forEach(t => t && (t.el.style.fontSize = fs(t.v) + 'px')); }).observe(boardEl);
+
+function empties() { const o = []; for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) if (!grid[r][c]) o.push([r, c]); return o; }
+function spawn() {
+  const e = empties(); if (!e.length) return;
+  const [r, c] = e[Math.floor(Math.random() * e.length)];
+  mkTile(Math.random() < .9 ? 2 : 4, r, c, 'new');
+}
+function snapshot() { return { g: grid.map(row => row.map(t => t ? t.v : 0)), score, won, keep: keepPlaying }; }
+function restore(s) {
+  boardEl.querySelectorAll('.tile').forEach(e => e.remove());
+  grid = Array.from({ length: 4 }, () => Array(4).fill(null)); pending = [];
+  s.g.forEach((row, r) => row.forEach((v, c) => { if (v) mkTile(v, r, c); }));
+  score = s.score; won = s.won; keepPlaying = s.keep; over = false; ui();
+}
+function ui() {
+  $('#sc').textContent = score; $('#bs').textContent = Math.max(best, score);
+  $('#undo').disabled = !undoState;
+}
+function newGame() {
+  boardEl.querySelectorAll('.tile').forEach(e => e.remove());
+  grid = Array.from({ length: 4 }, () => Array(4).fill(null)); pending = [];
+  score = 0; over = false; won = false; keepPlaying = false; undoState = null;
+  bw = boardEl.clientWidth || bw;
+  spawn(); spawn(); hideOverlay(); ui();
+}
+function settle() {
+  pending.forEach(({ t, into }) => { t.el.remove(); look(into, 'merge'); });
+  pending = [];
+}
+function move(dir) {                                          // 0 위, 1 오른쪽, 2 아래, 3 왼쪽
+  if (over || !ov.classList.contains('hide')) return;
+  settle();
+  const snap = snapshot();
+  const ng = Array.from({ length: 4 }, () => Array(4).fill(null));
+  let moved = false, gain = 0, reached = false;
+  const absorbed = [], all = [];
+  for (let k = 0; k < 4; k++) {
+    const cells = [];
+    for (let j = 0; j < 4; j++) cells.push(dir === 0 ? [j, k] : dir === 2 ? [3 - j, k] : dir === 3 ? [k, j] : [k, 3 - j]);
+    const placed = [];
+    for (const [r, c] of cells) {
+      const t = grid[r][c]; if (!t) continue;
+      const last = placed[placed.length - 1];
+      if (last && !last.merged && last.t.v === t.v) {
+        last.merged = true; last.t.v *= 2; gain += last.t.v;
+        if (last.t.v === 2048 && !won) reached = true;
+        t.target = cells[placed.length - 1]; absorbed.push({ t, into: last.t });
+      } else { placed.push({ t, merged: false }); t.target = cells[placed.length - 1]; }
+      all.push(t);
+    }
+  }
+  const absSet = new Set(absorbed.map(a => a.t));
+  all.forEach(t => { if (t.target[0] !== t.r || t.target[1] !== t.c) moved = true; });
+  if (!moved) { return; }
+  undoState = snap;
+  all.forEach(t => {
+    t.r = t.target[0]; t.c = t.target[1]; place(t.el, t.r, t.c);
+    if (!absSet.has(t)) ng[t.r][t.c] = t;
+  });
+  grid = ng; pending = absorbed;
+  setTimeout(settle, 120);
+  score += gain;
+  if (score > best) { best = score; try { localStorage.setItem('2048-best', String(best)); } catch (e) {} }
+  spawn(); ui();
+  if (reached) { won = true; setTimeout(() => { settle(); showOverlay(`<div class="card"><h2>2048 달성!</h2><p class="big">${score}</p><div class="btns"><button class="primary" data-act="keep">계속하기</button><button data-act="new">새 게임</button></div></div>`); }, 300); }
+  else if (!canMove()) { over = true; setTimeout(() => { settle(); showOverlay(`<div class="card"><h2>GAME OVER</h2><p class="big">${score}</p><div class="btns"><button class="primary" data-act="new">다시 하기</button><button data-act="undo">한 수 되돌리기</button></div></div>`); }, 350); }
+}
+function canMove() {
+  if (empties().length) return true;
+  for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) {
+    const v = grid[r][c].v;
+    if (c < 3 && grid[r][c + 1].v === v) return true;
+    if (r < 3 && grid[r + 1][c].v === v) return true;
+  }
+  return false;
+}
+function undo() {
+  if (!undoState) return;
+  restore(undoState); undoState = null; hideOverlay(); ui();
+}
+
+function showOverlay(html) { ov.innerHTML = html; ov.classList.remove('hide'); const b = ov.querySelector('.primary'); if (b) b.focus(); }
+function hideOverlay() { ov.classList.add('hide'); ov.innerHTML = ''; }
+ov.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  const a = b.dataset.act;
+  if (a === 'new') newGame(); else if (a === 'keep') { keepPlaying = true; hideOverlay(); } else if (a === 'undo') undo();
+});
+$('#new').addEventListener('click', newGame);
+$('#undo').addEventListener('click', undo);
+
+const KEY = { arrowup: 0, w: 0, arrowright: 1, d: 1, arrowdown: 2, s: 2, arrowleft: 3, a: 3 };
+addEventListener('keydown', e => {
+  const k = e.key.toLowerCase();
+  if (!ov.classList.contains('hide')) { if (e.key === 'Enter') { const b = ov.querySelector('.primary'); if (b) { e.preventDefault(); b.click(); } } return; }
+  if (k in KEY) { e.preventDefault(); move(KEY[k]); }
+  else if (k === 'u' || k === 'z') undo();
+  else if (k === 'r') newGame();
+});
+
+/* 스와이프 */
+const play = $('#play');
+let sp = null;
+play.addEventListener('pointerdown', e => { sp = { id: e.pointerId, x: e.clientX, y: e.clientY }; });
+play.addEventListener('pointerup', e => {
+  if (!sp || e.pointerId !== sp.id) return;
+  const dx = e.clientX - sp.x, dy = e.clientY - sp.y; sp = null;
+  if (Math.max(Math.abs(dx), Math.abs(dy)) < 24) return;
+  if (Math.abs(dx) > Math.abs(dy)) move(dx > 0 ? 1 : 3); else move(dy > 0 ? 2 : 0);
+});
+play.addEventListener('pointercancel', () => { sp = null; });
+
+bw = boardEl.clientWidth || 400;
+newGame();
+})();
+</script>
+</body>
+</html>

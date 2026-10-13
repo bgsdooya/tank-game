@@ -64,6 +64,22 @@ const GAMES = [
     thumb: 'plane',
     hiKey: 'airstrike1945-hi',
     tags: ['1인', '세로 화면 추천']
+  },
+  {
+    title: '테트리스',
+    desc: '떨어지는 블록으로 줄을 완성해 지운다. 홀드와 고스트 블록 지원.',
+    href: 'tetris.html',
+    thumb: 'tetris',
+    hiKey: 'tetris-hi',
+    tags: ['1인', '터치 버튼', '세로 화면 추천']
+  },
+  {
+    title: '2048',
+    desc: '같은 숫자 타일을 밀어서 합쳐 2048을 만드는 퍼즐. 되돌리기 가능.',
+    href: '2048.html',
+    thumb: 'g2048',
+    hiKey: '2048-best',
+    tags: ['1인', '스와이프', '세로 화면 추천']
   }
   // { title:'새 게임', desc:'설명', href:'newgame.html', thumb:null, tags:['태그'] },
 ];
@@ -109,6 +125,37 @@ const THUMBS = {
     sprite(g, me, { w: '#f4f4f4', g: '#a7b0c2', c: '#9aeaff', b: '#4a82f0', B: '#223f9e', y: '#ffd23d' }, 66, 60, 2);
     g.fillStyle = '#ffb92a'; [[73, 54], [73, 44], [73, 34], [87, 54], [87, 44], [87, 34]].forEach(p => g.fillRect(p[0], p[1], 2, 6));
     g.fillStyle = '#ff4d86'; [[52, 44], [86, 54], [118, 38], [64, 74], [100, 70]].forEach(p => { g.fillRect(p[0], p[1], 4, 4); g.fillStyle = '#fff'; g.fillRect(p[0] + 1, p[1] + 1, 2, 2); g.fillStyle = '#ff4d86'; });
+  },
+  tetris(g) {
+    g.fillStyle = '#0e0b24'; g.fillRect(0, 0, 160, 100);
+    const S = 8, X0 = 40;
+    g.fillStyle = '#080618'; g.fillRect(X0, 4, 80, 92);
+    g.strokeStyle = '#3a2f7a'; g.lineWidth = 2; g.strokeRect(X0 - 1, 3, 82, 94);
+    const C = { I:'#4de8ff', O:'#ffd23d', T:'#b25cff', S:'#5bd35b', Z:'#ff4a5a', J:'#4a82f0', L:'#ff9a2a' };
+    const blk = (x, y, col) => { const px = X0 + x * S, py = 4 + y * S; g.fillStyle = col; g.fillRect(px, py, S, S); g.fillStyle = 'rgba(255,255,255,.38)'; g.fillRect(px, py, S, 1); g.fillRect(px, py, 1, S); g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(px, py + S - 1, S, 1); g.fillRect(px + S - 1, py, 1, S); };
+    const rows = [
+      '..........', '..........', '..........', '..........',
+      '.......T..', '..O...TTT.', '.OO.JJ.S..', 'LOOZJJSS..', 'LLZZJISSLL', 'ZZSSOIOJLZ', 'JJJSOOIOZZ'];
+    const m = { I:'I', O:'O', T:'T', S:'S', Z:'Z', J:'J', L:'L' };
+    rows.forEach((r, y) => r.split('').forEach((ch, x) => { if (ch !== '.') blk(x, y, C[m[ch]]); }));
+    [[4,1],[3,2],[4,2],[5,2]].forEach(p => blk(p[0], p[1], C.T));
+  },
+  g2048(g) {
+    g.fillStyle = '#0e0b24'; g.fillRect(0, 0, 160, 100);
+    const S = 21, GAP = 3, X0 = 80 - (4 * S + 5 * GAP) / 2, Y0 = 50 - (4 * S + 5 * GAP) / 2;
+    g.fillStyle = '#0b0920'; g.fillRect(X0, Y0, 4 * S + 5 * GAP, 4 * S + 5 * GAP);
+    const V = { 2:['#2f3f8f','#fff'], 4:['#3f55b8','#fff'], 8:['#ff9a2a','#fff'], 16:['#ff7a45','#fff'], 32:['#ff4a5a','#fff'], 64:['#e8236b','#fff'], 128:['#ffd23d','#2a1300'], 256:['#ffe066','#2a1300'], 512:['#9aeaff','#06222c'], 1024:['#5bd35b','#062a0c'], 2048:['#ffffff','#2a1300'] };
+    const board = [[2,4,8,16],[4,0,32,64],[0,128,256,512],[2,4,1024,2048]];
+    board.forEach((row, r) => row.forEach((v, c) => {
+      const x = X0 + GAP + c * (S + GAP), y = Y0 + GAP + r * (S + GAP);
+      g.fillStyle = v ? V[v][0] : '#171150'; g.fillRect(x, y, S, S);
+      if (v) {
+        g.fillStyle = 'rgba(255,255,255,.2)'; g.fillRect(x, y, S, 2); g.fillRect(x, y, 2, S);
+        g.fillStyle = 'rgba(0,0,0,.3)'; g.fillRect(x, y + S - 2, S, 2); g.fillRect(x + S - 2, y, 2, S);
+        g.fillStyle = V[v][1]; g.font = (String(v).length > 3 ? 6 : String(v).length > 2 ? 7 : 9) + 'px "Press Start 2P", monospace';
+        g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(String(v), x + S / 2, y + S / 2 + 1);
+      }
+    }));
   }
 };
 function fallbackThumb(g, title) {
